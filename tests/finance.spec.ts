@@ -1,10 +1,11 @@
 import { test, expect } from '@playwright/test';
 
+const API_BASE = 'http://localhost:8000';
+
 test.describe('FinanceTracker App', () => {
   test.beforeEach(async ({ page }) => {
+    await page.request.delete(`${API_BASE}/transactions`);
     await page.goto('/');
-    await page.evaluate(() => localStorage.clear());
-    await page.reload();
   });
 
   test('page loads with correct title and summary cards', async ({ page }) => {
@@ -45,11 +46,17 @@ test.describe('FinanceTracker App', () => {
     await expect(page.getByTestId('form-error')).toContainText('valid amount');
   });
 
-  test('can add an income transaction', async ({ page }) => {
+  test('can add an income transaction and backend persists it', async ({ page }) => {
     await page.getByTestId('description-input').fill('Monthly Salary');
     await page.getByTestId('amount-input').fill('5000');
     await page.getByTestId('type-income').click();
-    await page.getByTestId('submit-button').click();
+
+    const [response] = await Promise.all([
+      page.waitForResponse(`${API_BASE}/transactions`),
+      page.getByTestId('submit-button').click(),
+    ]);
+
+    expect(response.status()).toBe(201);
 
     await expect(page.getByTestId('transaction-list')).toBeVisible();
     await expect(page.getByTestId('transaction-item').first()).toContainText('Monthly Salary');
@@ -128,6 +135,7 @@ test.describe('FinanceTracker App', () => {
       await page.getByTestId('description-input').fill(entry.desc);
       await page.getByTestId('amount-input').fill(entry.amount);
       await page.getByTestId('submit-button').click();
+      await expect(page.getByTestId('transaction-item').first()).toContainText(entry.desc);
     }
 
     const items = page.getByTestId('transaction-item');
@@ -150,5 +158,17 @@ test.describe('FinanceTracker App', () => {
     await page.getByTestId('submit-button').click();
 
     await expect(page.getByTestId('transaction-item').first()).toContainText('Food & Dining');
+  });
+
+  test('transactions persist in backend across page reload', async ({ page }) => {
+    await page.getByTestId('description-input').fill('Persistent Income');
+    await page.getByTestId('amount-input').fill('1000');
+    await page.getByTestId('submit-button').click();
+    await expect(page.getByTestId('transaction-item').first()).toContainText('Persistent Income');
+
+    await page.reload();
+
+    await expect(page.getByTestId('transaction-item').first()).toContainText('Persistent Income');
+    await expect(page.getByTestId('income-amount')).toContainText('$1,000.00');
   });
 });
