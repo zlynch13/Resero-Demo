@@ -28,6 +28,11 @@ class TransactionIn(BaseModel):
     date: str
 
 
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
 @app.get("/transactions")
 def get_transactions():
     return transactions

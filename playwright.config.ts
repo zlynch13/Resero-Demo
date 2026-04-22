@@ -26,7 +26,7 @@ export default defineConfig({
     },
     {
       command: 'cd backend && python3 -m uvicorn main:app --port 8000',
-      url: 'http://localhost:8000',
+      url: 'http://127.0.0.1:8000/health',
       reuseExistingServer: !process.env.CI,
       timeout: 30 * 1000,
     },
