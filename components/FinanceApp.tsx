@@ -3,8 +3,6 @@
 import { useState, useEffect } from 'react';
 import { Transaction, TransactionType } from '@/lib/types';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
-
 const CATEGORIES = [
   'Salary',
   'Freelance',
@@ -33,6 +31,7 @@ function todayISO(): string {
 
 export default function FinanceApp() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
@@ -42,11 +41,22 @@ export default function FinanceApp() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    fetch(`${API_BASE}/transactions`)
-      .then((r) => r.json())
-      .then(setTransactions)
-      .catch(() => {});
+    const stored = localStorage.getItem('finance_transactions');
+    if (stored) {
+      try {
+        setTransactions(JSON.parse(stored));
+      } catch {
+        // ignore malformed data
+      }
+    }
+    setIsLoaded(true);
   }, []);
+
+  useEffect(() => {
+    if (isLoaded) {
+      localStorage.setItem('finance_transactions', JSON.stringify(transactions));
+    }
+  }, [transactions, isLoaded]);
 
   const totalIncome = transactions
     .filter((t) => t.type === 'income')
@@ -58,7 +68,7 @@ export default function FinanceApp() {
 
   const balance = totalIncome - totalExpenses;
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
 
@@ -73,26 +83,23 @@ export default function FinanceApp() {
       return;
     }
 
-    const res = await fetch(`${API_BASE}/transactions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ description: description.trim(), amount: parsed, type, category, date }),
-    });
+    const tx: Transaction = {
+      id: Date.now().toString(),
+      description: description.trim(),
+      amount: parsed,
+      type,
+      category,
+      date,
+    };
 
-    if (res.ok) {
-      const newTx: Transaction = await res.json();
-      setTransactions((prev) => [newTx, ...prev]);
-      setDescription('');
-      setAmount('');
-      setDate(todayISO());
-    }
+    setTransactions((prev) => [tx, ...prev]);
+    setDescription('');
+    setAmount('');
+    setDate(todayISO());
   }
 
-  async function handleDelete(id: string) {
-    const res = await fetch(`${API_BASE}/transactions/${id}`, { method: 'DELETE' });
-    if (res.ok) {
-      setTransactions((prev) => prev.filter((t) => t.id !== id));
-    }
+  function handleDelete(id: string) {
+    setTransactions((prev) => prev.filter((t) => t.id !== id));
   }
 
   return (
